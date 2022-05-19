@@ -59,6 +59,10 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define loraAUX_Pin GPIO_PIN_8
 #define loraAUX_GPIO_Port GPIOD
+#define loraM1_Pin GPIO_PIN_9
+#define loraM1_GPIO_Port GPIOD
+#define loraM0_Pin GPIO_PIN_10
+#define loraM0_GPIO_Port GPIOD
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

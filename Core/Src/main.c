@@ -18,12 +18,13 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
 #include "string.h"
 #include "stdio.h"
 #include "stdint.h"
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
+#include "LoRa.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -68,7 +69,7 @@ uint8_t RxBuf[RxBufSIZE];
 uint8_t MainBuf[MainBufSIZE];
 uint8_t ii=0;
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+/*void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart==LoraUart)
 	{
@@ -77,7 +78,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	if(ii==178)
 		ii=0;
 	HAL_UART_Receive_IT(LoraUart, RxBuf, 1);
-}
+}*/
+
 /* USER CODE END 0 */
 
 /**
@@ -111,10 +113,14 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  LoRaE22_Init(&huart1, loraAUX_GPIO_Port, loraM0_GPIO_Port, loraM1_GPIO_Port,
+      loraAUX_Pin, loraM0_Pin, loraM1_Pin);
+
   HAL_UART_Receive_IT(LoraUart, RxBuf, 1);
   uint8_t TxBuffer[200] = {'\0'};
   uint8_t txHeader[] = {0x00, 0x3f, 0x12};
   uint8_t i=0;
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -123,7 +129,7 @@ int main(void)
   {
 	  if(HAL_GPIO_ReadPin(loraAUX_GPIO_Port, loraAUX_Pin)==GPIO_PIN_SET)
 	  {
-		  HAL_UART_Transmit(LoraUart, txHeader, sizeof(txHeader), HAL_MAX_DELAY);
+		  HAL_StatusTypeDef a = HAL_UART_Transmit(LoraUart, txHeader, sizeof(txHeader), HAL_MAX_DELAY);
 		  sprintf(TxBuffer, "%d\n", i++/*, "$467710,3,03/02/202_12/30/45,101368.02,1368.12,123.65,213.45,89.80,10.36,22.87,13.75,38.512487,33.563017,125.89,38.525433,33.548497,135.89,YUKSELME,12.48,10.69,210.39,5,EVET"*/);
 		  HAL_UART_Transmit(LoraUart, TxBuffer, sizeof(TxBuffer), HAL_MAX_DELAY);
 	  }
@@ -296,11 +302,22 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, loraM1_Pin|loraM0_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : loraAUX_Pin */
   GPIO_InitStruct.Pin = loraAUX_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(loraAUX_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : loraM1_Pin loraM0usa_Pin */
+  GPIO_InitStruct.Pin = loraM1_Pin|loraM0_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */

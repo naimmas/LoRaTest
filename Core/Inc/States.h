@@ -127,6 +127,7 @@ enum LoRaTypedef_WOR_PERIOD {
 	WOR_4000_111 = 0b111
 
 };
+/*
 static int getResponseDescriptionByParams(uint8_t status){
     switch (status)
     {
@@ -421,5 +422,6 @@ static int getWORPeriodByParams(uint8_t WORPeriod)
             return F("Invalid WOR period!");
     }
 }
+*/
 
 #endif //LORA_STATES_H
