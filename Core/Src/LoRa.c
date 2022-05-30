@@ -111,13 +111,13 @@ void _managedDelay(unsigned long timeout)
   while ((HAL_GetTick() - t) < timeout);
 }
 
-LoRaTypedef_STATUS LoRaE22_sendStruct(void *structureM, uint16_t size)
+LoRaTypedef_STATUS LoRaE22_sendStruct(uint8_t *structureM, uint16_t size)
 {
   if (size > MAX_SIZE_TX_PACKET + 2)
   {
     return ERR_E22_PACKET_TOO_BIG;
   }
-  if (HAL_UART_Transmit(initConfig.uartDevice, (uint8_t*) structureM, size,
+  if (HAL_UART_Transmit(initConfig.uartDevice, structureM, size,
   UART_DELAY) != HAL_OK)
   {
     return ERR_E22_NO_RESPONSE_FROM_DEVICE;
@@ -125,14 +125,20 @@ LoRaTypedef_STATUS LoRaE22_sendStruct(void *structureM, uint16_t size)
   return LoRaE22_waitCompleteResponse(RESPONSE_DELAY);
 }
 
-LoRaTypedef_STATUS LoRaE22_receiveStruct(void *structureM, uint16_t size)
+LoRaTypedef_STATUS LoRaE22_receiveStruct(uint8_t* structureM, uint16_t size, uint8_t RSSI)
 {
-  uint8_t buf[MAX_SIZE_TX_PACKET] = {'\0'};
-  HAL_StatusTypeDef a = HAL_UART_Receive(initConfig.uartDevice, buf, MAX_SIZE_TX_PACKET, UART_DELAY);
-  if (a != HAL_OK)
+  if (HAL_UART_Receive(initConfig.uartDevice, structureM, MAX_SIZE_TX_PACKET, UART_DELAY) != HAL_OK)
     return ERR_E22_NO_RESPONSE_FROM_DEVICE;
 
+  LoRaE22_waitCompleteResponse(RESPONSE_DELAY);
+  if(RSSI)
+  {
+    uint8_t rssi[1];
+    HAL_UART_Receive(initConfig.uartDevice, rssi, 1, UART_DELAY);
+    rc.rssi = rssi;
+  }
   return LoRaE22_waitCompleteResponse(RESPONSE_DELAY);
+
 }
 
 HAL_StatusTypeDef LoRaE22_writeProgramCommand(
@@ -143,199 +149,4 @@ HAL_StatusTypeDef LoRaE22_writeProgramCommand(
   uint8_t CMD[3] = { cmd, addr, pl };
   return HAL_UART_Transmit(initConfig.uartDevice, CMD, 3, UART_DELAY);
   _managedDelay(10);  //need ti check
-}
-
-LoRaResponseContainer LoRaE22_getConfiguration()
-{
-  LoRaResponseContainer rc;
-  LoRaTypedef_MODES prevMode = _mode;
-
-  rc.status.code = LoRaE22_SetMode(E22_CONFIG_MODE);
-  if (rc.status.code != E22_SUCCESS)
-    return rc;
-
-  if (LoRaE22_writeProgramCommand(E22_READ_CONFIGURATION, E22_REG_ADDRESS_CFG, E22_PL_CONFIGURATION) == HAL_OK)
-
-  {
-    rc.data = malloc(sizeof(LoRaConfiguration));
-    rc.status.code = LoRaE22_receiveStruct((uint8_t*) rc.data, sizeof(LoRaConfiguration));
-  }
-  else
-  {
-    rc.status.code = ERR_E22_NO_RESPONSE_FROM_DEVICE;
-    return rc;
-  }
-
-  if (rc.status.code != E22_SUCCESS)
-  {
-    LoRaE22_SetMode(prevMode);
-    return rc;
-  }
-
-  rc.status.code = LoRaE22_SetMode(prevMode);
-  if (rc.status.code != E22_SUCCESS)
-    return rc;
-
-  if (E22_WRONG_FORMAT == ((LoRaConfiguration*) rc.data)->COMMAND)
-  {
-    rc.status.code = ERR_E22_WRONG_FORMAT;
-  }
-  if (E22_RETURNED_COMMAND != ((LoRaConfiguration*) rc.data)->COMMAND
-      || E22_REG_ADDRESS_CFG != ((LoRaConfiguration*) rc.data)->STARTING_ADDRESS
-      || E22_PL_CONFIGURATION != ((LoRaConfiguration*) rc.data)->LENGTH)
-  {
-    rc.status.code = ERR_E22_HEAD_NOT_RECOGNIZED;
-  }
-
-  return rc;
-}
-
-struct _LoRaResponseStatus LoRaE22_setConfiguration(LoRaConfiguration configuration, LoRaTypedef_PROG_CMD saveType)
-{
-  struct _LoRaResponseStatus rc;
-
-  LoRaTypedef_MODES prevMode = _mode;
-
-  rc.code = LoRaE22_SetMode(E22_CONFIG_MODE);
-  if (rc.code != E22_SUCCESS)
-    return rc;
-
-  configuration.COMMAND = saveType;
-  configuration.STARTING_ADDRESS = E22_REG_ADDRESS_CFG;
-  configuration.LENGTH = E22_PL_CONFIGURATION;
-
-  rc.code = LoRaE22_sendStruct((uint8_t*) &configuration, sizeof(LoRaConfiguration));
-  if (rc.code != E22_SUCCESS)
-  {
-    LoRaE22_SetMode(prevMode);
-    return rc;
-  }
-
-  rc.code = LoRaE22_receiveStruct((uint8_t*) &configuration, sizeof(LoRaConfiguration));
-
-  rc.code = LoRaE22_SetMode(prevMode);
-  if (rc.code != E22_SUCCESS)
-    return rc;
-
-  if (E22_WRONG_FORMAT == ((LoRaConfiguration*) &configuration)->COMMAND)
-  {
-    rc.code = ERR_E22_WRONG_FORMAT;
-  }
-  if (E22_RETURNED_COMMAND != ((LoRaConfiguration*) &configuration)->COMMAND
-      || E22_REG_ADDRESS_CFG != ((LoRaConfiguration*) &configuration)->STARTING_ADDRESS
-      || E22_PL_CONFIGURATION != ((LoRaConfiguration*) &configuration)->LENGTH)
-  {
-    rc.code = ERR_E22_HEAD_NOT_RECOGNIZED;
-  }
-
-  return rc;
-}
-
-LoRaResponseContainer LoRaE22_getModuleInformation()
-{
-  LoRaResponseContainer rc;
-
-  LoRaTypedef_MODES prevMode = _mode;
-
-  rc.status.code = LoRaE22_SetMode(E22_CONFIG_MODE);
-  if (rc.status.code != E22_SUCCESS)
-    return rc;
-
-  LoRaE22_writeProgramCommand(E22_READ_CONFIGURATION, E22_REG_ADDRESS_PID, E22_PL_PID);
-
-  rc.data = malloc(sizeof(LoRaModuleInformation));
-
-  rc.status.code = LoRaE22_receiveStruct((uint8_t*) rc.data, sizeof(LoRaModuleInformation));
-  if (rc.status.code != E22_SUCCESS)
-  {
-    LoRaE22_SetMode(prevMode);
-    return rc;
-  }
-
-  rc.status.code = LoRaE22_SetMode(prevMode);
-  if (rc.status.code != E22_SUCCESS)
-    return rc;
-
-  if (E22_WRONG_FORMAT == ((LoRaModuleInformation*) rc.data)->COMMAND)
-  {
-    rc.status.code = ERR_E22_WRONG_FORMAT;
-  }
-  if (E22_RETURNED_COMMAND != ((LoRaModuleInformation*) rc.data)->COMMAND
-      || E22_REG_ADDRESS_PID != ((LoRaModuleInformation*) rc.data)->STARTING_ADDRESS
-      || E22_PL_PID != ((LoRaModuleInformation*) rc.data)->LENGTH)
-  {
-    rc.status.code = ERR_E22_HEAD_NOT_RECOGNIZED;
-  }
-
-  return rc;
-}
-
-LoRaResponseContainer LoRaE22_receiveMessage(const uint8_t size, uint8_t rssiEnabled)
-{
-  LoRaResponseContainer rc;
-  rc.data = malloc(size);
-  rc.status.code = LoRaE22_receiveStruct((uint8_t*) rc.data, size);
-  if (rc.status.code != E22_SUCCESS)
-  {
-    return rc;
-  }
-
-  if (rssiEnabled)
-  {
-
-    uint8_t rssi[1];
-    HAL_UART_Receive(initConfig.uartDevice, rssi, 1, UART_DELAY);
-    rc.rssi = rssi[0];
-  }
-
-  return rc;
-}
-
-struct _LoRaResponseStatus LoRaE22_sendMessage(const void *message, const uint8_t size)
-{
-  struct _LoRaResponseStatus status;
-  status.code = LoRaE22_sendStruct((uint8_t*) message, size);
-  return status;
-}
-
-typedef struct fixedStransmission
-{
-  uint8_t ADDH;
-  uint8_t ADDL;
-  uint8_t CHAN;
-  uint8_t message[];
-} FixedStransmission;
-
-FixedStransmission* init_stack(uint16_t m)
-{
-  FixedStransmission *st = (FixedStransmission*) malloc(sizeof(FixedStransmission) + m * sizeof(uint16_t));
-  return st;
-}
-
-struct _LoRaResponseStatus LoRaE22_sendFixedMessage(
-    uint8_t ADDH,
-    uint8_t ADDL,
-    uint8_t CHAN,
-    const void *message,
-    const uint16_t size)
-{
-
-  FixedStransmission *fixedStransmission = init_stack(size);
-
-  fixedStransmission->ADDH = ADDH;
-  fixedStransmission->ADDL = ADDL;
-  fixedStransmission->CHAN = CHAN;
-
-  memcpy(fixedStransmission->message, (unsigned char*) message, size);
-
-  struct _LoRaResponseStatus status;
-  status.code = LoRaE22_sendStruct((uint8_t*) fixedStransmission, (uint16_t) (size + 3));
-  free(fixedStransmission);
-
-  return status;
-}
-
-struct _LoRaResponseStatus LoRaE22_sendBroadcastFixedMessage(uint8_t CHAN, const void *message, const uint16_t size)
-{
-  return LoRaE22_sendFixedMessage(0xFF, 0xFF, CHAN, message, size);
 }

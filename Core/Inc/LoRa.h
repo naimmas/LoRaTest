@@ -124,14 +124,12 @@ typedef struct
   uint8_t end;
 } LoRaModuleInformation;
 
-
 typedef struct
 {
   void *data;
   uint8_t rssi;
   struct _LoRaResponseStatus status;
 } LoRaResponseContainer;
-
 
 LoRaResponseContainer LoRaE22_getConfiguration();
 LoRaResponseContainer LoRaE22_getModuleInformation();
@@ -162,4 +160,3 @@ HAL_StatusTypeDef LoRaE22_writeProgramCommand(
     LoRaTypedef_REG_ADDRS addr,
     LoRaTypedef_PACKET_LENGHT pl);
 void _managedDelay(unsigned long timeout);
-
